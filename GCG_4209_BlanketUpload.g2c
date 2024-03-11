@@ -1,0 +1,421 @@
+Program.Sub.ScreenSU.Start
+Gui.F_FileSelect..Create
+Gui.F_FileSelect..Caption("File Selection")
+Gui.F_FileSelect..Size(5010,1695)
+Gui.F_FileSelect..MinX(0)
+Gui.F_FileSelect..MinY(0)
+Gui.F_FileSelect..Position(0,0)
+Gui.F_FileSelect..BackColor(-2147483633)
+Gui.F_FileSelect..MousePointer(0)
+Gui.F_FileSelect..Event(UnLoad,F_FileSelect_UnLoad)
+Gui.F_FileSelect.cmdUpload.Create(Button)
+Gui.F_FileSelect.cmdUpload.Size(1005,375)
+Gui.F_FileSelect.cmdUpload.Position(255,750)
+Gui.F_FileSelect.cmdUpload.Caption("Upload")
+Gui.F_FileSelect.cmdUpload.Event(Click,cmdUpload_Click)
+Gui.F_FileSelect.cmdBrowser.Create(Button)
+Gui.F_FileSelect.cmdBrowser.Size(375,375)
+Gui.F_FileSelect.cmdBrowser.Position(3750,375)
+Gui.F_FileSelect.cmdBrowser.Caption("^")
+Gui.F_FileSelect.cmdBrowser.Event(Click,cmdBrowser_Click)
+Gui.F_FileSelect.txtDirectory.Create(TextBox,"",True,3495,300,0,195,405,True,0,"Arial",8,-2147483643,1)
+Gui.F_FileSelect.lblFile.Create(Label,"File Directory",True,1935,255,0,255,195,True,0,"Arial",8,-2147483633,0)
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+Variable.Global.uFile.Declare(String)
+Variable.Global.uFlag.Declare(String)
+
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+
+F.ODBC.Connection!con.OpenConnection(V.Ambient.PDSN, V.Ambient.PUser, V.Ambient.PPass)
+
+'Check to see if they have Excel or OOC
+F.Intrinsic.Control.CallSub(checkprogram)
+
+Gui.F_FileSelect..Show
+
+Program.Sub.Main.End
+
+Program.Sub.cmdBrowser_Click.Start
+F.Intrinsic.Control.SetErrorHandler("cmdBrowser_Click_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+Variable.Local.sDir.Declare(String)
+Variable.Local.sFile.Declare(String)
+
+'Have a window pop up to browse for a spredsheet file
+F.Intrinsic.Control.SelectCase(V.Global.uFlag)
+F.Intrinsic.Control.Case("EXCEL")
+	F.Intrinsic.String.Build("{0}\Select File",V.Caller.GlobalDir,V.Local.sDir)
+	Function.Intrinsic.UI.ShowOpenFileDialog(Variable.Local.sDir,"xlsx|*xlsx","",V.Local.sFile)
+	Function.Intrinsic.Control.If(V.Local.sFile,<>,"***CANCEL***")
+		Gui.F_FileSelect.txtDirectory.Text(Variable.Local.sFile)
+	Function.Intrinsic.Control.EndIf
+F.Intrinsic.Control.Case("OOCALC")
+	F.Intrinsic.String.Build("{0}\Select File",V.Caller.GlobalDir,V.Local.sDir)
+	Function.Intrinsic.UI.ShowOpenFileDialog(Variable.Local.sDir,"ods|*ods","",V.Local.sFile)
+	Function.Intrinsic.Control.If(V.Local.sFile,<>,"***CANCEL***")
+		Gui.F_FileSelect.txtDirectory.Text(Variable.Local.sFile)
+	Function.Intrinsic.Control.EndIf
+F.Intrinsic.Control.EndSelect
+
+F.Intrinsic.Control.ExitSub
+F.Intrinsic.Control.Label("cmdBrowser_Click_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4209_BlanketUpload.g2c",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(f_fileselect_unload)
+Function.Intrinsic.Control.EndIf
+Program.Sub.cmdBrowser_Click.End
+
+Program.Sub.cmdUpload_Click.Start
+F.Intrinsic.Control.SetErrorHandler("cmdUpload_Click_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+Variable.Local.sLog.Declare(String)
+Variable.Local.sName.Declare(String)
+Variable.Local.sDir.Declare(String)
+Variable.Local.bDir.Declare(Boolean)
+Variable.Local.sData.Declare(String)
+Variable.Local.iCount.Declare(String)
+Variable.Local.sLine.Declare(String)
+V.Local.sDataLine.Declare(String)
+Variable.Local.sDate.Declare(String)
+Variable.Local.sBlOrd.Declare(String)
+Variable.Local.sOrdLn.Declare(String)
+Variable.Local.sLnDate.Declare(String)
+Variable.Local.sLnQty.Declare(String)
+Variable.Local.sShipID.Declare(String)
+Variable.Local.sErr.Declare(String)
+Variable.Local.sTemp.Declare(String)
+Variable.Local.sParams.Declare(String)
+Variable.Local.bFlag.Declare(String)
+Variable.Local.sRet.Declare(String)
+Variable.Local.sBadLines.Declare(String)
+Variable.Local.sKeys.Declare(String)
+Variable.Local.sFilter.Declare(String)
+Variable.Local.iView.Declare(String)
+Variable.Local.sPO.Declare(String)
+V.Local.sPOs.Declare(String)
+V.Local.sSql.Declare(String)
+
+Gui.F_FileSelect..Visible(False)
+F.Intrinsic.UI.InvokeWaitDialog("Reading File and processing releases.", "Blanket Order Releases Being Processed")
+
+
+
+'Function below automatically formats to CCYYMMDD
+Function.Intrinsic.String.DateString(Variable.Ambient.Date, Variable.Local.sDate)
+
+'Read the file
+'Function.Intrinsic.File.File2StringArray(Variable.Screen.F_FileSelect!txtDirectory.Text, Variable.Ambient.NewLine, Variable.Local.sData)
+
+
+F.Intrinsic.Control.SelectCase(V.Global.uFlag)
+F.Intrinsic.Control.Case("EXCEL")
+	F.Automation.MSExcel.ReadSpreadsheet(V.Screen.F_FileSelect!txtDirectory.Text, V.Local.sData)
+F.Intrinsic.Control.Case("OOCALC")
+	F.Automation.OOCalc.ReadSpreadsheet(V.Screen.F_FileSelect!txtDirectory.Text, V.Local.sData)
+F.Intrinsic.Control.EndSelect
+
+F.Intrinsic.String.Split(V.Local.sData, "&^&", V.Local.sData)
+F.Intrinsic.String.Split(V.Local.sData(0), "$!$", V.Local.sDataLine)
+
+
+'Check to see if data was found
+Function.Intrinsic.Variable.IsArray(Variable.Local.sDataLine, Variable.Local.bFlag)
+Function.Intrinsic.Control.If(Variable.Local.bFlag, =, False)
+	'Print out error on Error Log
+	Function.Intrinsic.Control.CallSub(writefile, "sLine", "No data found in file")
+Function.Intrinsic.Control.Else
+	Function.Intrinsic.Math.Add(Variable.Local.sDataLine.UBound, 1, Variable.Local.iCount)
+	Function.Intrinsic.String.Build("{1}Data found successfully. {0} lines to be processed.{1}", Variable.Local.iCount, Variable.Ambient.NewLine, Variable.Local.sErr)
+	Function.Intrinsic.Control.CallSub(writefile, "sLine", Variable.Local.sErr)
+Function.Intrinsic.Control.EndIf
+
+Function.Intrinsic.Control.CallSub(createdatatable)
+Variable.Local.sBadLines.Set("")
+
+'Format data per line and upload using Callwrapper
+Function.Intrinsic.Control.For(Variable.Local.iCount, Variable.Local.sDataLine.LBound, Variable.Local.sDataLine.UBound, 1)
+	Function.Intrinsic.Math.Add(Variable.Local.iCount, 1, Variable.Local.sErr)
+	Function.Intrinsic.String.Split(Variable.Local.sDataLine(Variable.Local.iCount), "*!*", Variable.Local.sLine)
+	'Check to see if correct number of params
+	Function.Intrinsic.Control.If(Variable.Local.sLine.UBound, =, 5)
+		Variable.Local.sBlOrd.Set(Variable.Local.sLine(0))
+		Variable.Local.sOrdLn.Set(Variable.Local.sLine(1))
+		Variable.Local.sLnQty.Set(Variable.Local.sLine(2))
+		Variable.Local.sLnDate.Set(Variable.Local.sLine(3))
+'		Variable.Local.sShipID.Set(Variable.Local.sLine(4))
+		F.Intrinsic.Control.IIF(V.Local.sLine(4), =, "", "F", V.Local.sLine(4), V.Local.sShipID)
+		Variable.Local.sPO.Set(V.Local.sLine(5))
+		'Need to add the Purchase order as well
+		
+		'Add line information to DataTable
+		F.Data.DataTable.AddRow("Lines", "BlanketOrder", V.Local.sBlOrd, "OrderLine", V.Local.sOrdLn, "Quantity", V.Local.sLnQty, "Date", V.Local.sLnDate, "ShipID", V.Local.sShipID, "PO", V.Local.sPO)
+		
+	Function.Intrinsic.Control.Else
+		'Keep track of lines that had invalid number of parameters.
+		Function.Intrinsic.String.Build("{0}{1},", Variable.Local.sBadLines, Variable.Local.sErr, Variable.Local.sBadLines) 
+	Function.Intrinsic.Control.EndIf
+Function.Intrinsic.Control.Next(Variable.Local.iCount)
+
+F.Data.DataTable.SetValueFormat("Lines", -1, "BlanketOrder", "BlanketOrder", "0000000")
+F.Data.DataTable.SetValueFormat("Lines", -1, "OrderLine", "OrderLine", "000")
+F.Data.DataTable.SetValueFormat("Lines", -1, "PO", "PO", "0000000") 
+F.Data.DataTable.SetValueFormat("Lines", -1, "ShipID", "ShipID", "000000")
+F.Data.Dictionary.CreateFromDataTable("POs", "Lines", "BlanketOrder", "PO")
+F.Data.Dictionary.ReturnAllPairs("POs", V.Local.sKeys)
+
+Function.Intrinsic.String.Split(Variable.Local.sKeys, "!*!", Variable.Local.sKeys)
+V.Local.sPOs.Set(V.Local.sKeys(1))
+Function.Intrinsic.String.Split(Variable.Local.sKeys(0), "*!*", Variable.Local.sKeys)
+Function.Intrinsic.String.Split(Variable.Local.sPOs, "*!*", Variable.Local.sPOs)
+
+F.Intrinsic.Control.For(V.Local.iCount, 0, V.Local.sKeys.UBound, 1)
+	F.Intrinsic.String.LPad(V.Local.sKeys(V.Local.iCount), "0", 7, V.Local.sKeys(V.Local.iCount))
+	F.Intrinsic.String.Build("UPDATE ORDER_HEADER SET CUSTOMER_PO = '{0}' where ORDER_NO = '{1}' and  RECORD_TYPE = 'A' ", V.Local.sPOs(V.Local.iCount), V.Local.sKeys(V.Local.iCount), V.Local.sSql)
+	F.ODBC.Connection!con.Execute(V.Local.sSql)
+F.Intrinsic.Control.Next(V.Local.iCount)
+
+F.Data.Dictionary.Close("POs")
+
+
+'Create dictionary based on Ship ID
+Function.Data.Dictionary.CreateFromDataTable("Filter", "Lines", "ShipID", "ShipID")
+
+Function.Data.Dictionary.ReturnAllPairs("Filter", Variable.Local.sKeys)
+
+Function.Intrinsic.String.Split(Variable.Local.sKeys, "!*!", Variable.Local.sKeys)
+Function.Intrinsic.String.Split(Variable.Local.sKeys(0), "*!*", Variable.Local.sKeys)
+
+Function.Intrinsic.Control.For(Variable.Local.iCount, 0, Variable.Local.sKeys.UBound, 1)
+	Function.Intrinsic.String.Build("ShipID = '{0}'", Variable.Local.sKeys(Variable.Local.iCount), Variable.Local.sFilter)
+	Function.Data.DataView.Create("Lines", Variable.Local.sKeys(Variable.Local.iCount), 22, Variable.Local.sFilter, "BlanketOrder ASC, OrderLine ASC")
+	'loop through DataView to create csv file and use call wrapper accordingly.
+	Variable.Local.sShipID.Set(Variable.Local.sKeys(Variable.Local.iCount))
+	Variable.Local.sLine.Set("")
+	Function.Intrinsic.Control.For(Variable.Local.iView, 0, Variable.DataView.Lines![Variable.Local.sShipID].RowCount--, 1)
+		Variable.Local.sBlOrd.Set(Variable.DataView.Lines![Variable.Local.sShipID](Variable.Local.iView).BlanketOrder!FieldVal)
+		Variable.Local.sOrdLn.Set(Variable.DataView.Lines![Variable.Local.sShipID](Variable.Local.iView).OrderLine!FieldVal)
+		Variable.Local.sLnQty.Set(Variable.DataView.Lines![Variable.Local.sShipID](Variable.Local.iView).Quantity!FieldValFloat)
+		Variable.Local.sLnDate.Set(Variable.DataView.Lines![Variable.Local.sShipID](Variable.Local.iView).Date!FieldVal)
+		Function.Intrinsic.Control.If(Variable.Local.sLine, =, "")
+			Function.Intrinsic.String.Build("{0},{1},{2}", Variable.Local.sOrdLn, Variable.Local.sLnQty, Variable.Local.sLnDate, Variable.Local.sLine)
+		Function.Intrinsic.Control.Else
+			Function.Intrinsic.String.Build("{4}{3}{0},{1},{2}", Variable.Local.sOrdLn, Variable.Local.sLnQty, Variable.Local.sLnDate, Variable.Ambient.NewLine, Variable.Local.sLine, V.Local.sLine)
+		Function.Intrinsic.Control.EndIf	
+	Function.Intrinsic.Control.Next(Variable.Local.iView)	
+	Function.Intrinsic.String.Build("{0}\LineTemp.csv", V.Caller.FilesDir, Variable.Local.sTemp)	
+	Function.Intrinsic.File.String2File(Variable.Local.sTemp, Variable.Local.sLine)
+	F.Intrinsic.Control.If(V.Local.sShipID.Trim, =, "F")
+		V.Local.sShipID.Set("")
+	F.Intrinsic.Control.EndIf
+	Function.Intrinsic.String.ConcatCallWrapperArgs(Variable.Local.sBlOrd, "*!*ZDR*!*", "B", Variable.Local.sTemp, Variable.Local.sShipID, Variable.Local.sDate, Variable.Local.sParams)
+	Function.Global.General.CallWrapperSync(7041, Variable.Local.sParams)
+	'Check Callwrapperreturn to see if it was processed.
+	Function.Intrinsic.String.Split(Variable.Ambient.CallWrapperReturn, "*!*RETURN::", Variable.Local.sRet)
+	
+	Function.Intrinsic.Control.If(Variable.Local.sRet.UBound, =>, 1)
+		Function.Intrinsic.String.Split(Variable.Local.sRet(1),"*!*", Variable.Local.sRet)
+		Function.Intrinsic.Control.If(Variable.Local.sRet(0).Trim, =, "0")
+			'The process was successful
+			Function.Intrinsic.String.Build("Process for Ship ID '{0}' was a success. Order lines released. {1}", Variable.Local.sShipID, Variable.Ambient.NewLine, Variable.Local.sErr)
+		Function.Intrinsic.Control.Else
+			'The process was not a success
+			Function.Intrinsic.String.Build("Process for Ship ID '{0}' Failed. Order lines not released. {1}", Variable.Local.sShipID, Variable.Ambient.NewLine, Variable.Local.sErr)
+		Function.Intrinsic.Control.EndIf		
+	Function.Intrinsic.Control.Else
+		'The process was not a success
+		Function.Intrinsic.String.Build("Process for Ship ID '{0}' Failed. Order lines not released. {1}", Variable.Local.sShipID, Variable.Ambient.NewLine, Variable.Local.sErr)		
+	Function.Intrinsic.Control.EndIf
+	Function.Intrinsic.Control.CallSub(writefile, "sLine", Variable.Local.sErr)
+
+
+Function.Intrinsic.Control.Next(Variable.Local.iCount)
+
+F.Data.Dictionary.Close("Filter")
+F.Data.DataTable.Close("Lines")
+
+V.Local.sShipID.Set(V.Screen.F_FileSelect!txtDirectory.Text)
+Function.Intrinsic.String.Build("{1}Blanket release orders in file {1}{0} {1}Completed. {1}", Variable.Local.sShipID, Variable.Ambient.NewLine, Variable.Local.sErr)		
+Function.Intrinsic.Control.CallSub(writefile, "sLine", Variable.Local.sErr)
+
+Function.Intrinsic.UI.CloseWaitDialog
+Function.Intrinsic.UI.Msgbox("Blanket order releases have been processed. Error log has been created.", "Process Complete")
+
+Gui.F_FileSelect.txtDirectory.Text("")
+Gui.F_FileSelect..Show
+
+F.Intrinsic.Control.ExitSub
+F.Intrinsic.Control.Label("cmdUpload_Click_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4209_BlanketUpload.g2c",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(f_fileselect_unload)
+Function.Intrinsic.Control.EndIf
+Program.Sub.cmdUpload_Click.End
+
+Program.Sub.F_FileSelect_UnLoad.Start
+F.Intrinsic.Control.SetErrorHandler("F_FileSelect_UnLoad_Err")
+F.Intrinsic.Control.ClearErrors
+V.Local.sError.Declare(String)
+
+F.ODBC.Connection!con.Close
+Function.Intrinsic.Control.End
+
+F.Intrinsic.Control.ExitSub
+F.Intrinsic.Control.Label("F_FileSelect_UnLoad_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4209_BlanketUpload.g2c",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+Program.Sub.F_FileSelect_UnLoad.End
+
+Program.Sub.WriteFile.Start
+F.Intrinsic.Control.SetErrorHandler("WriteFile_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+'Add line to error log
+Function.Intrinsic.File.Append2FileNewLine(Variable.Global.uFile, Variable.Args.sLine)
+
+F.Intrinsic.Control.ExitSub
+F.Intrinsic.Control.Label("WriteFile_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4209_BlanketUpload.g2c",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(f_fileselect_unload)
+Function.Intrinsic.Control.EndIf
+Program.Sub.WriteFile.End
+
+Program.Sub.CreateDatatable.Start
+F.Intrinsic.Control.SetErrorHandler("CreateDatatable_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+Variable.Local.sErr.Declare(String)
+
+Function.Data.DataTable.Create("Lines", True)
+
+Function.Data.DataTable.AddColumn("Lines", "BlanketOrder", "String")
+Function.Data.DataTable.AddColumn("Lines", "OrderLine", "String")
+Function.Data.DataTable.AddColumn("Lines", "Quantity", "String")
+Function.Data.DataTable.AddColumn("Lines", "Date", "String")
+Function.Data.DataTable.AddColumn("Lines", "ShipID", "String", "F")
+Function.Data.DataTable.AddColumn("Lines", "PO", "String")
+
+
+Function.Intrinsic.String.Build("{0}Data Table created. {0}", Variable.Ambient.NewLine, Variable.Local.sErr)
+Function.Intrinsic.Control.CallSub(writefile, "sLine", Variable.Local.sErr)
+
+F.Intrinsic.Control.ExitSub
+F.Intrinsic.Control.Label("CreateDatatable_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4209_BlanketUpload.g2c",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(f_fileselect_unload)
+Function.Intrinsic.Control.EndIf
+Program.Sub.CreateDatatable.End
+
+Program.Sub.checkProgram.Start
+F.Intrinsic.Control.SetErrorHandler("checkProgram_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.bFlag.Declare(Boolean)
+V.Local.sErr.Declare(String)
+
+V.Local.bFlag.Set(False)
+
+F.Intrinsic.Control.CallSub(createfile)
+
+'This subroutine will check for the presence of Excel or Open Office Spredsheet creator thing
+F.Automation.MSExcel.CheckPresence(V.Local.bFlag)
+F.Intrinsic.Control.If(v.Local.bFlag, =, True)
+	V.Global.uFlag.Set("EXCEL")
+	F.Intrinsic.Control.ExitSub
+F.Intrinsic.Control.EndIf
+
+F.Automation.OOGeneral.CheckPresence(V.Local.bFlag)
+F.Intrinsic.Control.If(v.Local.bFlag, =, True)
+	V.Global.uFlag.Set("OOCALC")
+	F.Intrinsic.Control.ExitSub
+F.Intrinsic.Control.EndIf
+
+
+F.Intrinsic.String.Build("{0}Xml program not found in system. Ending program {0}", V.Ambient.NewLine, V.Local.sErr)
+F.Intrinsic.Control.CallSub(writefile, "sLine", V.Local.sErr)
+F.Intrinsic.Control.End
+
+F.Intrinsic.Control.ExitSub
+F.Intrinsic.Control.Label("checkProgram_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4209_BlanketUpload.g2c",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(f_fileselect_unload)
+Function.Intrinsic.Control.EndIf
+Program.Sub.checkProgram.End
+
+Program.Sub.CreateFile.Start
+F.Intrinsic.Control.SetErrorHandler("CreateFile_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.sDate.Declare(String)
+V.Local.sName.Declare(String)
+V.Local.sLog.Declare(String)
+V.Local.sDir.Declare(String)
+V.Local.bDir.Declare(String)
+
+'Function below automatically formats to CCYYMMDD
+Function.Intrinsic.String.DateString(Variable.Ambient.Date, Variable.Local.sDate)
+
+'This is the name of the Error Log file. The format is SOUpload-MMDDCCYY-TTTTTT.txt
+Function.Intrinsic.String.Replace(Variable.Ambient.Date, "/", "", Variable.Local.sName)
+Function.Intrinsic.String.Split(Variable.Local.sName, " ", Variable.Local.sName)
+Function.Intrinsic.String.Split(Variable.Ambient.Time, " ", Variable.Local.sLog)
+Function.Intrinsic.String.Replace(Variable.Local.sLog(0), ":", "", Variable.Local.sLog)
+Function.Intrinsic.String.Build("SOUpload-{0}-{1}", Variable.Local.sName(0), Variable.Local.sLog, Variable.Local.sLog)
+
+Function.Intrinsic.String.Build("{0}\Blanket Errorlogs", Variable.Caller.FilesDir, Variable.Local.sDir)
+
+'Create the directory for the Error Logs if it is not there
+Function.Intrinsic.File.DirExists(Variable.Local.sDir, Variable.Local.bDir)
+Function.Intrinsic.Control.If(Variable.Local.bDir, =, False)
+	Function.Intrinsic.File.CreateDir(Variable.Local.sDir)
+Function.Intrinsic.Control.EndIf
+
+Function.Intrinsic.String.Build("{0}\{1}.txt", Variable.Local.sDir, Variable.Local.sLog, Variable.Global.uFile)
+Function.Intrinsic.File.String2File(Variable.Global.uFile, "Begin Error Log")
+
+F.Intrinsic.Control.ExitSub
+F.Intrinsic.Control.Label("CreateFile_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4209_BlanketUpload.g2c",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(f_fileselect_unload)
+Function.Intrinsic.Control.EndIf
+Program.Sub.CreateFile.End
+
+Program.Sub.Comments.Start
+${$0$}$GCG_4209_BlanketUpload.g2c$}$SISCO$}$10/18/2016 2:01:58 PM$}$False
+${$3$}$0$}$$}$0$}$-1$}$$}$12:00:00 AM$}$This project was generated by FEQ on 10/2016. This script should run from a custom menu item under Order Entry > Transaction > Blanket Order Release Upload.
+This script will allow the user to upload multiple blanket sales order releases through a .csv file
+
+The format of the .csv file is expected to be:
+
+Blanket Order No.
+Blanket Order line number - three digits
+Quantity - up to nine digits before the decimal and six after
+Line Due Date - in CCYYMMDD format
+Ship to ID
+
+
+Program.Sub.Comments.End
